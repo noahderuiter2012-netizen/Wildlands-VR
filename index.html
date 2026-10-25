@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0b1712">
+<title>Wildlands VR — Stonefall Wilderness</title>
+<style>
+:root{color-scheme:dark;--lime:#b7f36b;--glass:rgba(7,18,13,.78)}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101d17;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#f0f5e9}
+#scene{position:fixed;inset:0}canvas{display:block;width:100%;height:100%;touch-action:none}
+#hud{position:fixed;inset:0;pointer-events:none;padding:16px;display:flex;flex-direction:column;justify-content:space-between}
+.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.brand,.status,.bottom{background:var(--glass);border:1px solid #b7f36b40;backdrop-filter:blur(10px);border-radius:14px;padding:11px 14px;box-shadow:0 8px 28px #0004}
+.brand strong{display:block;letter-spacing:.14em;font-size:13px;color:var(--lime)}.brand span{font-size:11px;color:#c1cdbf}
+.status{text-align:right;font-size:12px;color:#dbe8d5}.status b{color:var(--lime)}
+.bottom{align-self:center;max-width:min(560px,94vw);text-align:center;font-size:12px;color:#d3dfce;line-height:1.45}
+#start{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,#07130caa,#07130c88);padding:20px;z-index:4}
+.panel{width:min(500px,100%);padding:25px;border:1px solid #b7f36b60;border-radius:22px;background:rgba(6,17,12,.92);box-shadow:0 24px 80px #0008}
+.eyebrow{font-size:11px;letter-spacing:.2em;color:var(--lime);font-weight:800}.panel h1{font-size:clamp(30px,8vw,46px);line-height:1;margin:12px 0}.panel p{color:#c1cec0;line-height:1.6;font-size:14px}
+button{border:0;border-radius:12px;padding:13px 16px;background:var(--lime);color:#14220d;font-weight:800;font-size:14px;cursor:pointer}
+.actions{display:flex;gap:10px;flex-wrap:wrap}.actions button.secondary{background:#263a2d;color:#eef8e9;border:1px solid #607a63}
+#touch{position:fixed;bottom:22px;left:22px;width:112px;height:112px;border-radius:50%;border:1px solid #e8ffe44a;background:#06130e66;z-index:2;display:none;touch-action:none}
+#stick{position:absolute;left:34px;top:34px;width:44px;height:44px;border-radius:50%;background:#b7f36bcc;border:2px solid #efffdd;pointer-events:none}
+#lookhint{position:fixed;right:18px;bottom:32px;color:#f0f5e9c4;font-size:11px;pointer-events:none;display:none}
+#notice{color:#f3d9a0;font-size:12px;margin-top:12px}
+@media(max-width:650px){#hud{padding:10px}.brand,.status{padding:9px 10px}.brand strong{font-size:11px}.brand span,.status{font-size:10px}.bottom{font-size:10px;padding:9px 11px}#touch{display:block}#lookhint{display:block}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="hud"><div class="top">
+<div class="brand"><strong>WILDLANDS</strong><span>STONEFALL WILDERNESS // MAP BUILD 0.2</span></div>
+<div class="status"><b>STONEFALL VALLEY</b><br><span id="coords">X 0 · Z 0</span><br><span id="region">PINEWOOD EDGE</span></div>
+</div><div class="bottom">Explore the valley · Find the river, mountain passes and forgotten ruins</div></div>
+<div id="touch" aria-label="Movement joystick"><div id="stick"></div></div><div id="lookhint">Drag anywhere to look around</div>
+<div id="start"><div class="panel">
+<div class="eyebrow">WILDLANDS VR · MAP FIRST</div><h1>Stonefall<br>Wilderness.</h1>
+<p>A more detailed wilderness map: layered hills, textured earth, dense pine forest, grass clearings, a winding river, rocky slopes and distant mountain peaks. Tuned with standalone VR performance in mind.</p>
+<div class="actions"><button id="play">Explore the map</button><button id="vr" class="secondary">Enter VR</button></div>
+<div id="notice">Desktop: WASD + mouse. Mobile: joystick + drag to look. For VR, use Meta Quest Browser over HTTPS. This is a visual prototype, not the finished game.</div>
+</div></div>
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+
+const host=document.querySelector('#scene');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0xa2c4ce);
+scene.fog=new THREE.FogExp2(0xa2c4ce,.0026);
+const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,850);
+camera.position.set(0,1.68,0);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);
+renderer.xr.enabled=true;renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
+host.appendChild(renderer.domElement);
+const rig=new THREE.Group();rig.position.set(0,0,18);rig.add(camera);scene.add(rig);
+
+scene.add(new THREE.HemisphereLight(0xd9efff,0x34402a,2.0));
+const sun=new THREE.DirectionalLight(0xffe3b3,2.7);sun.position.set(-120,180,70);scene.add(sun);
+const fill=new THREE.DirectionalLight(0x9dc9dc,.65);fill.position.set(80,45,-100);scene.add(fill);
+
+let seed=20261025;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function heightAt(x,z){
+ const broad=Math.sin(x*.012+1.4)*5.4+Math.cos(z*.014)*6.2+Math.sin((x+z)*.009)*4.0;
+ const detail=Math.sin(x*.052+z*.031)*1.15+Math.cos(z*.061-x*.023)*.8;
+ const ridge=Math.max(0,Math.sin(x*.018+z*.011))*Math.max(0,Math.cos(z*.013)) * 8;
+ return broad+detail+ridge;
+}
+function makeNoiseTexture(base,spots,count,size=256){
+ const c=document.createElement('canvas');c.width=c.height=size;const ctx=c.getContext('2d');
+ ctx.fillStyle=base;ctx.fillRect(0,0,size,size);
+ for(let i=0;i<count;i++){ctx.globalAlpha=.08+rand()*.22;ctx.fillStyle=spots[Math.floor(rand()*spots.length)];const r=1+rand()*7;ctx.beginPath();ctx.ellipse(rand()*size,rand()*size,r,r*(.4+rand()),rand()*3.14,0,Math.PI*2);ctx.fill();}
+ ctx.globalAlpha=1;const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+const groundTex=makeNoiseTexture('#4c6040',['#263e2b','#74815a','#8b8960','#354b30','#5c5239'],5500);
+groundTex.repeat.set(24,24);
+const groundMat=new THREE.MeshStandardMaterial({map:groundTex,color:0xb7c6a2,roughness:1});
+const terrainGeo=new THREE.PlaneGeometry(620,620,180,180);terrainGeo.rotateX(-Math.PI/2);
+const tp=terrainGeo.attributes.position;
+for(let i=0;i<tp.count;i++){const x=tp.getX(i),z=tp.getZ(i);tp.setY(i,heightAt(x,z));}
+terrainGeo.computeVertexNormals();
+const terrain=new THREE.Mesh(terrainGeo,groundMat);terrain.position.y=-.3;terrain.frustumCulled=false;scene.add(terrain);terrain.receiveShadow=false;
+
+const barkTex=makeNoiseTexture('#4b3425',['#241e19','#76523a','#92704d','#302a22'],1400);barkTex.repeat.set(2,3);
+const barkMat=new THREE.MeshStandardMaterial({map:barkTex,color:0xd0b99b,roughness:1});
+const leafMats=[
+ new THREE.MeshStandardMaterial({color:0x183b27,roughness:1}),
+ new THREE.MeshStandardMaterial({color:0x244b2c,roughness:1}),
+ new THREE.MeshStandardMaterial({color:0x315b35,roughness:1}),
+ new THREE.MeshStandardMaterial({color:0x3d6438,roughness:1})
+];
+const trunkGeo=new THREE.CylinderGeometry(.2,.42,4.8,7);
+const pineGeo=new THREE.ConeGeometry(2.65,6.4,8,3);
+const pineGeo2=new THREE.ConeGeometry(2.05,5.2,8,3);
+const treeCount=850;
+const trunks=new THREE.InstancedMesh(trunkGeo,barkMat,treeCount);
+const crowns=leafMats.map(m=>new THREE.InstancedMesh(pineGeo,m,treeCount));
+const crowns2=leafMats.map(m=>new THREE.InstancedMesh(pineGeo2,m,treeCount));
+const dummy=new THREE.Object3D();
+const treePoints=[];
+function riverX(z){return 9*Math.sin(z*.012)+5*Math.sin(z*.027)+4}
+for(let i=0;i<treeCount;i++){
+ let x,z,tries=0;
+ do{x=(rand()-.5)*570;z=(rand()-.5)*570;tries++;}
+ while(tries<30&&((Math.abs(x)<20&&Math.abs(z)<25)||Math.abs(x-riverX(z))<13||Math.hypot(x-80,z+65)<28));
+ const y=heightAt(x,z),s=.72+rand()*1.2,rot=rand()*Math.PI*2;
+ treePoints.push({x,z,r:1.0*s});
+ dummy.position.set(x,y+2.25*s,z);dummy.rotation.set(0,rot,0);dummy.scale.set(s,s,s);dummy.updateMatrix();trunks.setMatrixAt(i,dummy.matrix);
+ const layerY=y;
+ for(let layer=0;layer<4;layer++){
+  const m=new THREE.Object3D();m.position.set(x,layerY+(3.3+layer*1.12)*s,z);m.rotation.set(0,rot+layer*.4,0);const ss=s*(1-layer*.14);m.scale.set(ss,ss,ss);m.updateMatrix();
+  crowns[layer].setMatrixAt(i,m.matrix);
+  const m2=new THREE.Object3D();m2.position.set(x,layerY+(2.8+layer*.9)*s,z);m2.rotation.set(0,rot+layer*.3,0);m2.scale.set(ss*.9,ss*.9,ss*.9);m2.updateMatrix();crowns2[layer].setMatrixAt(i,m2.matrix);
+ }
+}
+scene.add(trunks,...crowns,...crowns2);
+trunks.instanceMatrix.needsUpdate=true;crowns.forEach(m=>m.instanceMatrix.needsUpdate=true);crowns2.forEach(m=>m.instanceMatrix.needsUpdate=true);
+
+// Winding river is a ribbon following the land rather than a tube.
+const waterTex=makeNoiseTexture('#4a9297',['#8bc5c1','#286c78','#d0d5b3'],1200);waterTex.repeat.set(2,22);
+const waterMat=new THREE.MeshStandardMaterial({map:waterTex,color:0x9bd2d0,roughness:.24,metalness:.12,transparent:true,opacity:.94,side:THREE.DoubleSide});
+const riverCurve=new THREE.CatmullRomCurve3([
+ new THREE.Vector3(-45,0,-310),new THREE.Vector3(-20,0,-240),new THREE.Vector3(5,0,-170),
+ new THREE.Vector3(28,0,-95),new THREE.Vector3(12,0,-25),new THREE.Vector3(-10,0,35),
+ new THREE.Vector3(25,0,110),new THREE.Vector3(18,0,180),new THREE.Vector3(55,0,260),new THREE.Vector3(48,0,310)
+]);
+const riverN=260,riverVerts=[],riverUvs=[],riverIndices=[];
+for(let i=0;i<=riverN;i++){
+ const t=i/riverN,p=riverCurve.getPoint(t),tan=riverCurve.getTangent(t),side=new THREE.Vector3(-tan.z,0,tan.x).normalize();
+ const half=4.6+Math.sin(t*17)*.9;
+ for(const sign of [-1,1]){
+  const x=p.x+side.x*half*sign,z=p.z+side.z*half*sign;
+  riverVerts.push(x,heightAt(x,z)+.16,z);riverUvs.push(sign===-1?0:1,t*28);
+ }
+ if(i<riverN){const a=i*2;riverIndices.push(a,a+1,a+2,a+1,a+3,a+2);}
+}
+const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(riverVerts,3));rg.setAttribute('uv',new THREE.Float32BufferAttribute(riverUvs,2));rg.setIndex(riverIndices);rg.computeVertexNormals();
+const river=new THREE.Mesh(rg,waterMat);scene.add(river);
+
+// Forest floor grass: instanced tapered blades in natural clearings.
+const grassMat=new THREE.MeshStandardMaterial({color:0x7d9b50,roughness:1,side:THREE.DoubleSide});
+const grassGeo=new THREE.ConeGeometry(.12,.8,3);grassGeo.translate(0,.38,0);
+const grass=new THREE.InstancedMesh(grassGeo,grassMat,3600);
+for(let i=0;i<3600;i++){
+ const x=(rand()-.5)*560,z=(rand()-.5)*560;
+ if((Math.abs(x)<23&&Math.abs(z)<27)||Math.abs(x-riverX(z))<11) {dummy.position.set(1000,-1000,1000);dummy.scale.setScalar(0);dummy.updateMatrix();grass.setMatrixAt(i,dummy.matrix);continue;}
+ const s=.35+rand()*.85;dummy.position.set(x,heightAt(x,z)+.08,z);dummy.rotation.set((rand()-.5)*.15,rand()*6.28,(rand()-.5)*.15);dummy.scale.set(s,s*(.6+rand()),s);dummy.updateMatrix();grass.setMatrixAt(i,dummy.matrix);
+}
+scene.add(grass);grass.instanceMatrix.needsUpdate=true;
+
+// Rocks, boulders and broken cliff outcrops.
+const rockTex=makeNoiseTexture('#77796d',['#41483e','#b0aa8d','#575c52','#d0c5a2'],2200);
+const rockMat=new THREE.MeshStandardMaterial({map:rockTex,color:0xb9b8a6,roughness:.92});
+const rockGeo=new THREE.IcosahedronGeometry(1,1);const rocks=new THREE.InstancedMesh(rockGeo,rockMat,480);
+for(let i=0;i<480;i++){
+ const edge=rand()>.52;let x,z;
+ if(edge){const a=rand()*Math.PI*2,r=160+rand()*125;x=Math.cos(a)*r;z=Math.sin(a)*r;}else{x=(rand()-.5)*540;z=(rand()-.5)*540;}
+ if(Math.abs(x)<15&&Math.abs(z)<18){x+=28;}
+ const s=.45+rand()*3.3;dummy.position.set(x,heightAt(x,z)+s*.3,z);dummy.rotation.set(rand()*2,rand()*6,rand()*2);dummy.scale.set(s,s*(.55+rand()*.6),s*(.7+rand()*.5));dummy.updateMatrix();rocks.setMatrixAt(i,dummy.matrix);
+}
+scene.add(rocks);rocks.instanceMatrix.needsUpdate=true;
+
+// Far ridges frame the map; their cooler colors blend into atmospheric haze.
+const mountainMats=[0x596d6c,0x657b77,0x74847c,0x8d9b8d].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
+for(let i=0;i<36;i++){
+ const a=i/36*Math.PI*2,r=290+rand()*50,h=35+rand()*65,w=28+rand()*40;
+ const mountain=new THREE.Mesh(new THREE.ConeGeometry(w,h,7,2),mountainMats[i%mountainMats.length]);
+ mountain.position.set(Math.cos(a)*r,h*.38-4,Math.sin(a)*r);mountain.scale.x=1.25+rand()*.8;mountain.rotation.y=rand()*1.5;scene.add(mountain);
+}
+
+// A small ancient stone landmark on a ridge, visible through the trees.
+const ruinMat=new THREE.MeshStandardMaterial({map:rockTex,color:0xaaa995,roughness:1});
+const ruins=new THREE.Group();scene.add(ruins);
+for(let i=0;i<8;i++){const x=78+(i%4)*2.5,z=-65+Math.floor(i/4)*3.2;const p=new THREE.Mesh(new THREE.BoxGeometry(1.6,4+rand()*2,1.5),ruinMat);p.position.set(x,heightAt(x,z)+2,z);p.rotation.y=rand()*.2;ruins.add(p);}
+const lintel=new THREE.Mesh(new THREE.BoxGeometry(10,1.2,1.8),ruinMat);lintel.position.set(82,heightAt(82,-65)+5.6,-65);ruins.add(lintel);
+const archGlow=new THREE.PointLight(0x6dbdff,2,16);archGlow.position.set(82,heightAt(82,-65)+2.2,-65);ruins.add(archGlow);
+
+// XR, desktop and touch controls.
+const vrButton=VRButton.createButton(renderer);vrButton.style.display='none';document.body.appendChild(vrButton);
+document.querySelector('#vr').addEventListener('click',()=>{if(!navigator.xr){document.querySelector('#notice').textContent='WebXR is not available here. Open this page over HTTPS in Meta Quest Browser on your headset.';return;}vrButton.click();});
+const start=document.querySelector('#start');
+document.querySelector('#play').addEventListener('click',()=>{start.style.display='none';if(innerWidth>700)renderer.domElement.requestPointerLock?.();});
+let yaw=0,pitch=0;const keys={};addEventListener('keydown',e=>{keys[e.code]=true;});addEventListener('keyup',e=>{keys[e.code]=false;});
+document.addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement){yaw-=e.movementX*.002;pitch=clamp(pitch-e.movementY*.002,-1.2,1.2);camera.rotation.set(pitch,yaw,0,'YXZ');}});
+let dragging=false,lastX=0,lastY=0;
+renderer.domElement.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'&&e.target!==document.querySelector('#touch')){dragging=true;lastX=e.clientX;lastY=e.clientY;}});
+addEventListener('pointerup',()=>dragging=false);
+renderer.domElement.addEventListener('pointermove',e=>{if(dragging&&!renderer.xr.isPresenting){yaw-=(e.clientX-lastX)*.004;pitch=clamp(pitch-(e.clientY-lastY)*.004,-1.2,1.2);camera.rotation.set(pitch,yaw,0,'YXZ');lastX=e.clientX;lastY=e.clientY;}});
+const pad=document.querySelector('#touch'),stick=document.querySelector('#stick');let joyX=0,joyY=0,joyActive=false;
+function setJoy(e){const r=pad.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let dx=e.clientX-cx,dy=e.clientY-cy;const max=34,l=Math.hypot(dx,dy)||1;if(l>max){dx=dx/l*max;dy=dy/l*max;}joyX=dx/max;joyY=dy/max;stick.style.transform='translate('+dx+'px,'+dy+'px)';}
+pad.addEventListener('pointerdown',e=>{joyActive=true;pad.setPointerCapture(e.pointerId);setJoy(e);});pad.addEventListener('pointermove',e=>{if(joyActive)setJoy(e);});
+function releaseJoy(){joyActive=false;joyX=joyY=0;stick.style.transform='translate(0,0)';}
+pad.addEventListener('pointerup',releaseJoy);pad.addEventListener('pointercancel',releaseJoy);
+
+const clock=new THREE.Clock(),coords=document.querySelector('#coords'),region=document.querySelector('#region');
+function blocked(x,z){for(const t of treePoints){if(Math.abs(t.x-x)>3&&Math.abs(t.z-z)>3)continue;if(Math.hypot(t.x-x,t.z-z)<t.r+1.1)return true;}return false;}
+function animate(){
+ const dt=Math.min(clock.getDelta(),.04);
+ const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();
+ const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0)).normalize();
+ let mx=0,mz=0;
+ if(keys.KeyW||keys.ArrowUp)mz-=1;if(keys.KeyS||keys.ArrowDown)mz+=1;if(keys.KeyA||keys.ArrowLeft)mx-=1;if(keys.KeyD||keys.ArrowRight)mx+=1;
+ mx+=joyX;mz+=joyY;
+ if(renderer.xr.isPresenting){for(const source of renderer.xr.getSession()?.inputSources||[]){const axes=source.gamepad?.axes;if(axes&&axes.length>=4){mx+=axes[2]||0;mz+=axes[3]||0;}}}
+ const len=Math.hypot(mx,mz);if(len>1){mx/=len;mz/=len;}
+ const speed=keys.ShiftLeft||keys.ShiftRight?9:4.8;
+ const dx=(right.x*mx-forward.x*mz)*speed*dt,dz=(right.z*mx-forward.z*mz)*speed*dt;
+ if(!blocked(rig.position.x+dx,rig.position.z))rig.position.x+=dx;
+ if(!blocked(rig.position.x,rig.position.z+dz))rig.position.z+=dz;
+ const groundY=heightAt(rig.position.x,rig.position.z);
+ rig.position.y=groundY;
+ coords.textContent='X '+Math.round(rig.position.x)+' · Z '+Math.round(rig.position.z);
+ const d=Math.hypot(rig.position.x,rig.position.z);
+ region.textContent=d<35?'VALLEY CLEARING':Math.abs(rig.position.x-riverX(rig.position.z))<13?'RIVERBANK':d>220?'HIGH RIDGE':'PINEWOOD';
+ waterTex.offset.y=(waterTex.offset.y-.012*dt)%1;
+ renderer.render(scene,camera);
+}
+renderer.setAnimationLoop(animate);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));});
+</script>
+</body>
+</html>
