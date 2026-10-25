@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0b1712">
+<title>Wildlands VR — Forest Prototype</title>
+<style>
+:root{color-scheme:dark;--lime:#b7f36b;--glass:rgba(7,18,13,.78)}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101d17;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#f0f5e9}
+#scene{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none;padding:16px;display:flex;flex-direction:column;justify-content:space-between}
+.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.brand,.status,.bottom{background:var(--glass);border:1px solid #b7f36b40;backdrop-filter:blur(10px);border-radius:14px;padding:11px 14px;box-shadow:0 8px 28px #0004}
+.brand strong{display:block;letter-spacing:.14em;font-size:13px;color:var(--lime)}.brand span{font-size:11px;color:#c1cdbf}
+.status{text-align:right;font-size:12px;color:#dbe8d5}.status b{color:var(--lime)}
+.bottom{align-self:center;max-width:min(560px,94vw);text-align:center;font-size:12px;color:#d3dfce;line-height:1.45}
+#start{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,#07130caa,#07130c88);padding:20px;z-index:4}
+.panel{width:min(480px,100%);padding:25px;border:1px solid #b7f36b60;border-radius:22px;background:rgba(6,17,12,.92);box-shadow:0 24px 80px #0008}
+.eyebrow{font-size:11px;letter-spacing:.2em;color:var(--lime);font-weight:800}.panel h1{font-size:clamp(30px,8vw,46px);line-height:1;margin:12px 0}.panel p{color:#c1cec0;line-height:1.6;font-size:14px}
+button{border:0;border-radius:12px;padding:13px 16px;background:var(--lime);color:#14220d;font-weight:800;font-size:14px;cursor:pointer}
+.actions{display:flex;gap:10px;flex-wrap:wrap}.actions button.secondary{background:#263a2d;color:#eef8e9;border:1px solid #607a63}
+#touch{position:fixed;bottom:22px;left:22px;width:112px;height:112px;border-radius:50%;border:1px solid #e8ffe44a;background:#06130e66;z-index:2;display:none;touch-action:none}
+#stick{position:absolute;left:34px;top:34px;width:44px;height:44px;border-radius:50%;background:#b7f36bcc;border:2px solid #efffdd}
+#lookhint{position:fixed;right:18px;bottom:32px;color:#f0f5e9a8;font-size:11px;pointer-events:none;display:none}
+#notice{color:#f3d9a0;font-size:12px;margin-top:12px}
+@media(max-width:650px){#hud{padding:10px}.brand,.status{padding:9px 10px}.brand strong{font-size:11px}.brand span,.status{font-size:10px}.bottom{font-size:10px;padding:9px 11px}#touch{display:block}#lookhint{display:block}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="hud">
+ <div class="top">
+  <div class="brand"><strong>WILDLANDS</strong><span>FIELD TEST // BUILD 0.1</span></div>
+  <div class="status"><b>STONEFALL FOREST</b><br><span id="coords">X 0 · Z 0</span><br><span>SOLO EXPLORATION</span></div>
+ </div>
+ <div class="bottom">Prototype map · Explore the forest, follow the river, and look for the old stone ruins.</div>
+</div>
+<div id="touch" aria-label="Movement joystick"><div id="stick"></div></div>
+<div id="lookhint">Drag the view to look around</div>
+<div id="start">
+ <div class="panel">
+  <div class="eyebrow">WILDLANDS VR · FIRST PLAYABLE</div>
+  <h1>Enter the<br>Wildlands.</h1>
+  <p>A first look at the forest world for Meta Quest 3S. Explore the trees, river, rocks, hills and ancient ruins. This is an early single-player environment prototype.</p>
+  <div class="actions"><button id="play">Explore in browser</button><button id="vr" class="secondary">Enter VR</button></div>
+  <div id="notice">For VR, open this page in a WebXR-compatible browser over HTTPS. Desktop: WASD to move, mouse to look. Mobile: joystick to move, drag to look.</div>
+ </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+
+const host=document.querySelector('#scene');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x91b9c0);
+scene.fog=new THREE.FogExp2(0x91b9c0,0.008);
+const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,500);
+camera.position.set(0,1.7,0);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));
+renderer.setSize(innerWidth,innerHeight);
+renderer.xr.enabled=true;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
+host.appendChild(renderer.domElement);
+const rig=new THREE.Group();rig.position.set(0,0,12);rig.add(camera);scene.add(rig);
+const hemi=new THREE.HemisphereLight(0xd5f2ff,0x273a20,2.0);scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffe4b0,2.3);sun.position.set(-45,70,25);scene.add(sun);
+const mat=(color,roughness=1)=>new THREE.MeshStandardMaterial({color,roughness});
+const groundMat=mat(0x405b35),trunkMat=mat(0x59402a),leafA=mat(0x244a2b),leafB=mat(0x315d31),rockMat=mat(0x6e766a),mossMat=mat(0x54684a);
+const groundGeo=new THREE.PlaneGeometry(360,360,100,100);groundGeo.rotateX(-Math.PI/2);
+const pos=groundGeo.attributes.position;
+function heightAt(x,z){return Math.sin(x*.055)*1.7+Math.cos(z*.047)*2.1+Math.sin((x+z)*.035)*1.2+Math.cos(x*.12-z*.08)*.45}
+for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i);pos.setY(i,heightAt(x,z));}
+groundGeo.computeVertexNormals();
+const ground=new THREE.Mesh(groundGeo,groundMat);ground.position.y=-.15;ground.receiveShadow=false;scene.add(ground);
+const waterMat=new THREE.MeshStandardMaterial({color:0x3e9eaa,roughness:.25,metalness:.08,transparent:true,opacity:.9});
+const riverCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(-20,1.4,-180),new THREE.Vector3(-7,1.0,-100),new THREE.Vector3(10,1.2,-35),new THREE.Vector3(2,.7,25),new THREE.Vector3(22,1.1,90),new THREE.Vector3(7,1.2,180)]);
+const riverLine=new THREE.Mesh(new THREE.TubeGeometry(riverCurve,180,3.2,8,false),waterMat);riverLine.position.y=-.5;scene.add(riverLine);
+const trunkGeo=new THREE.CylinderGeometry(.22,.38,3.4,6);
+const crownGeo=new THREE.ConeGeometry(2.0,4.8,7);
+const crownGeo2=new THREE.SphereGeometry(1.65,7,5);
+const treeGroup=new THREE.Group();scene.add(treeGroup);
+let seed=20261024;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
+function riverX(z){return 7*Math.sin(z*.025)+5}
+for(let i=0;i<250;i++){
+ let x=(rand()-.5)*300,z=(rand()-.5)*300;
+ if(Math.abs(x)<13&&Math.abs(z)<22)continue;
+ if(Math.abs(x-riverX(z))<7)continue;
+ const y=heightAt(x,z),scale=.65+rand()*1.15;
+ const trunk=new THREE.Mesh(trunkGeo,trunkMat);trunk.position.set(x,y+1.55*scale,z);trunk.scale.setScalar(scale);treeGroup.add(trunk);
+ const crown=new THREE.Mesh(crownGeo,rand()>.5?leafA:leafB);crown.position.set(x,y+4.0*scale,z);crown.scale.set(scale,scale,scale);treeGroup.add(crown);
+ if(rand()>.65){const crown2=new THREE.Mesh(crownGeo2,leafA);crown2.position.set(x+.8*scale,y+4.5*scale,z+.2*scale);crown2.scale.setScalar(scale*.72);treeGroup.add(crown2);}
+}
+const rockGeo=new THREE.DodecahedronGeometry(1,0);
+for(let i=0;i<90;i++){let x=(rand()-.5)*280,z=(rand()-.5)*280;if(Math.abs(x)<9&&Math.abs(z)<18)continue;const r=.35+rand()*2.1;const rock=new THREE.Mesh(rockGeo,rand()>.55?rockMat:mossMat);rock.position.set(x,heightAt(x,z)+r*.35,z);rock.scale.set(r,r*(.45+rand()*.5),r*.8);rock.rotation.set(rand(),rand()*3,rand());scene.add(rock);}
+const hillMat=mat(0x50664a);
+for(let i=0;i<18;i++){const a=i/18*Math.PI*2,r=135+rand()*20;const hill=new THREE.Mesh(new THREE.ConeGeometry(18+rand()*16,28+rand()*35,7),hillMat);hill.position.set(Math.cos(a)*r,8,Math.sin(a)*r);hill.scale.x=1.5;scene.add(hill);}
+const ruinMat=mat(0x8b8d7b),ruins=new THREE.Group();scene.add(ruins);
+for(let i=0;i<7;i++){const x=28+(i%3)*3,z=-18+Math.floor(i/3)*3;const p=new THREE.Mesh(new THREE.BoxGeometry(1.2,4+rand()*2,1.2),ruinMat);p.position.set(x,heightAt(x,z)+2,z);p.rotation.y=rand()*.25;ruins.add(p);}
+const lintel=new THREE.Mesh(new THREE.BoxGeometry(8,1.1,1.4),ruinMat);lintel.position.set(31,heightAt(31,-18)+5.2,-18);ruins.add(lintel);
+const vrButton=VRButton.createButton(renderer);vrButton.style.display='none';document.body.appendChild(vrButton);
+document.querySelector('#vr').addEventListener('click',()=>{if(!navigator.xr){document.querySelector('#notice').textContent='WebXR is not available in this browser. Try Meta Quest Browser on your headset, using an HTTPS page.';return;}vrButton.click();});
+const start=document.querySelector('#start');
+document.querySelector('#play').addEventListener('click',()=>{start.style.display='none';if(innerWidth>700)renderer.domElement.requestPointerLock?.();});
+let yaw=0,pitch=0;const keys={};addEventListener('keydown',e=>{keys[e.code]=true;});addEventListener('keyup',e=>{keys[e.code]=false;});
+document.addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement){yaw-=e.movementX*.002;pitch-=e.movementY*.002;pitch=Math.max(-1.25,Math.min(1.25,pitch));camera.rotation.set(pitch,yaw,0,'YXZ');}});
+let dragging=false,lastX=0,lastY=0;renderer.domElement.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'){dragging=true;lastX=e.clientX;lastY=e.clientY;}});addEventListener('pointerup',()=>dragging=false);
+renderer.domElement.addEventListener('pointermove',e=>{if(dragging&&!renderer.xr.isPresenting){yaw-=(e.clientX-lastX)*.004;pitch-=(e.clientY-lastY)*.004;pitch=Math.max(-1.2,Math.min(1.2,pitch));camera.rotation.set(pitch,yaw,0,'YXZ');lastX=e.clientX;lastY=e.clientY;}});
+const pad=document.querySelector('#touch'),stick=document.querySelector('#stick');let joyX=0,joyY=0,joyActive=false;
+function setJoy(e){const r=pad.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let dx=e.clientX-cx,dy=e.clientY-cy;const max=34,l=Math.hypot(dx,dy)||1;if(l>max){dx=dx/l*max;dy=dy/l*max;}joyX=dx/max;joyY=dy/max;stick.style.transform='translate('+dx+'px,'+dy+'px)';}
+pad.addEventListener('pointerdown',e=>{joyActive=true;pad.setPointerCapture(e.pointerId);setJoy(e);});pad.addEventListener('pointermove',e=>{if(joyActive)setJoy(e);});function releaseJoy(){joyActive=false;joyX=joyY=0;stick.style.transform='translate(0,0)';}pad.addEventListener('pointerup',releaseJoy);pad.addEventListener('pointercancel',releaseJoy);
+const clock=new THREE.Clock();const coords=document.querySelector('#coords');
+function animate(){const dt=Math.min(clock.getDelta(),.04);const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0)).normalize();let mx=0,mz=0;
+ if(keys.KeyW||keys.ArrowUp)mz-=1;if(keys.KeyS||keys.ArrowDown)mz+=1;if(keys.KeyA||keys.ArrowLeft)mx-=1;if(keys.KeyD||keys.ArrowRight)mx+=1;
+ mx+=joyX;mz+=joyY;
+ if(renderer.xr.isPresenting){const session=renderer.xr.getSession();for(const source of session?.inputSources||[]){const axes=source.gamepad?.axes;if(axes&&axes.length>=4){mx+=axes[2]||0;mz+=axes[3]||0;}}}
+ const len=Math.hypot(mx,mz);if(len>1){mx/=len;mz/=len;}const speed=keys.ShiftLeft||keys.ShiftRight?10:5;
+ rig.position.addScaledVector(right,mx*speed*dt);rig.position.addScaledVector(forward,-mz*speed*dt);
+ rig.position.y=0;coords.textContent='X '+Math.round(rig.position.x)+' · Z '+Math.round(rig.position.z);
+ renderer.render(scene,camera);}
+renderer.setAnimationLoop(animate);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));});
+</script>
+</body>
+</html>
